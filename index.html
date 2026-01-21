@@ -28,141 +28,173 @@
 
     <!-- Internal Styles -->
     <style>
-        /*
-         * -----------------------------------------------------------------
-         * FONT AND BASE STYLES
-         * -----------------------------------------------------------------
+        /* * ==========================================
+         * 斗地主风格布局 (Dou Dizhu Layout) 
+         * ==========================================
          */
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
-        
+
+        :root {
+            /* 1. AI 区域：很小，只占屏幕高度 15% */
+            --h-ai: 14vh;
+            
+            /* 2. 中间出牌区：中等，占屏幕 22% */
+            --h-center: 22vh;
+            
+            /* 3. 玩家手牌：最大，占屏幕 30%，确保文字清晰 */
+            --h-player: 32vh; 
+        }
+
         body {
             font-family: 'Noto Sans SC', sans-serif;
             background-color: #f0fdf4;
-            overflow: hidden; /* Prevent scrollbars during animations */
+            overflow: hidden; /* 严禁滚动条 */
+            height: 100vh;
+            width: 100vw;
+            user-select: none; /* 防止双击选中文本 */
         }
 
-        /*
-         * -----------------------------------------------------------------
-         * FULLSCREEN OVERLAY STYLES
-         * -----------------------------------------------------------------
-         */
-        .fullscreen-overlay {
-            background-color: white;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background-size: cover;
-            background-position: center;
-            background-repeat: no-repeat;
-            transition: opacity 0.5s ease;
-        }
-
-        /*
-         * -----------------------------------------------------------------
-         * CARD STYLES
-         * -----------------------------------------------------------------
-         */
+        /* --- 卡牌通用样式 --- */
         .card {
-            width: 160px; /* Resized for better readability */
-            height: 240px; /* Resized for better readability */
-            border-radius: 12px;
+            border-radius: 6px;
             background-color: #e2e8f0;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
+            box-shadow: -2px 2px 5px rgba(0,0,0,0.2); /* 阴影向左下，增加立体感 */
+            transition: transform 0.2s ease, margin 0.2s ease;
             cursor: pointer;
-            border: 3px solid transparent;
+            border: 1px solid #94a3b8;
             background-size: cover;
             background-position: center;
             position: relative;
+            flex-shrink: 0; /* 防止被挤扁 */
         }
 
-        .card.selected {
-            transform: translateY(-20px) scale(1.05);
-            box-shadow: 0 8px 16px rgba(34, 197, 94, 0.3);
-            border-color: #22c55e;
+        /* --- 1. AI 手牌 (顶部) --- */
+        #ai-hand {
+            height: var(--h-ai);
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* 靠上对齐 */
+            padding-top: 10px;
         }
         
+        #ai-hand .card {
+            height: var(--h-ai);
+            width: calc(var(--h-ai) * 0.71); /* 0.71 是扑克牌黄金比例 */
+            margin-left: -2vh; /* 让牌紧凑重叠 */
+            transform: scale(0.9); /* 稍微缩小一点视觉感 */
+        }
+
+        /* --- 2. 玩家手牌 (底部) --- */
+        #player-hand {
+            height: var(--h-player);
+            display: flex;
+            justify-content: center;
+            align-items: flex-end; /* 靠下对齐 */
+            padding-bottom: 5px;
+            /* 关键：让手牌看起来像手里拿着 */
+            perspective: 1000px; 
+        }
+
+        /* --- 修正层级遮挡问题 --- */
+        #player-area {
+            /* 原有的样式保持不变，新增下面这一行 z-index */
+            z-index: 30 !important; 
+            /* 确保这个区域在最上层，不会被中间区域挡住 */
+        }
+
+        /* 确保动画克隆体不会干扰点击 */
         .card-clone {
             position: fixed;
-            z-index: 1000;
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        
-        .card.stealable:hover, .card.recoverable:hover {
-            transform: scale(1.1);
-            border-color: #f59e0b;
-            box-shadow: 0 8px 16px rgba(245, 158, 11, 0.4);
+            z-index: 9999;
+            pointer-events: none; /* 关键：让鼠标可以穿透飞行的卡牌 */
+            transition: all 0.6s ease-in-out;
         }
 
-        /*
-         * -----------------------------------------------------------------
-         * PLAYER AND AI HAND STYLES
-         * -----------------------------------------------------------------
-         */
-        .hand-container {
-            display: flex;
-            justify-content: center;
-            align-items: flex-end;
-            gap: -130px; /* Adjusted for new card size */
-            padding: 10px;
-            min-height: 260px; /* Adjusted height */
-            position: relative;
+        #player-hand .card {
+            height: var(--h-player);
+            width: calc(var(--h-player) * 0.71);
+            /* 负边距！这是让牌重叠的关键，像斗地主一样 */
+            margin-left: -8vh; 
+            margin-bottom: 0;
+            box-shadow: -4px 0 8px rgba(0,0,0,0.3); /* 更强的侧边阴影 */
+            transform-origin: bottom center;
+            transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
         }
 
-        #player-hand .card { 
-            transition: all 0.3s ease; 
+        /* 第一张牌不需要负边距 */
+        #player-hand .card:first-child {
+            margin-left: 0;
         }
 
+        /* 鼠标悬停效果：向上弹出 */
         #player-hand .card:hover {
-            transform: translateY(-40px) scale(1.15); /* Restored hover zoom effect */
+            transform: translateY(-20px) scale(1.05); 
+            z-index: 50 !important; /* 悬停时层级最高 */
+            margin-right: 20px; /* 把旁边的牌挤开一点，方便看 */
+        }
+
+        /* 选中状态 */
+        #player-hand .card.selected {
+            transform: translateY(-40px); /* 选中后向上突出 */
+            border: 3px solid #22c55e;
+            box-shadow: 0 0 15px rgba(34, 197, 94, 0.6);
             z-index: 10;
         }
-        
-        /*
-         * -----------------------------------------------------------------
-         * GAME BOARD AREA STYLES
-         * -----------------------------------------------------------------
-         */
-        .play-area-container {
-            min-height: 260px; /* Adjusted height */
-            background-color: rgba(255, 255, 255, 0.5);
-            border: 2px dashed #a7f3d0;
-            border-radius: 20px;
+
+        /* --- 3. 中间出牌区 --- */
+        #center-area {
+            flex: 1; /* 占据剩余所有空间 */
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 1.5rem;
-            padding: 1.5rem;
-            width: 100%;
-        }
-        
-        .play-area-zone {
-            width: 50%;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 1rem;
-            position: relative;
-        }
-        
-        .play-area-zone .zone-label {
-            font-weight: bold;
-            color: #374151;
-            background-color: rgba(255,255,255,0.7);
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 1.1rem;
+            min-height: 0; /* 防止 flex溢出 */
         }
 
+        /* 统一控制中间所有卡牌的大小 */
+        .play-area-cards .card, 
+        #deck-back-preview, 
+        #discard-pile-preview {
+            height: var(--h-center);
+            width: calc(var(--h-center) * 0.71);
+            cursor: default;
+        }
+        
         .play-area-cards {
             display: flex;
             justify-content: center;
             align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
+            gap: 5px; /* 出牌区不需要重叠太多 */
+        }
+
+        /* --- 其他 UI 组件微调 --- */
+        /* 调整中间容器背景，让它不要太抢眼 */
+        .play-area-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            /* 去掉背景色和虚线框，让画面更干净，只留文字提示 */
+            background: none; 
+            border: none;
+        }
+
+        .zone-label {
+            background-color: rgba(255,255,255,0.6);
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            color: #166534;
+            font-weight: bold;
+        }
+
+        /* 动画类 */
+        .card-clone {
+            position: fixed;
+            z-index: 9999;
+            pointer-events: none;
+            transition: all 0.6s ease-in-out;
         }
 
         /*
@@ -170,13 +202,36 @@
          * UI COMPONENTS STYLES
          * -----------------------------------------------------------------
          */
+        /* --- 提示框 (Toast) 样式修改 --- */
         .toast {
-            visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center;
-            border-radius: 8px; padding: 16px; position: fixed; z-index: 100; left: 50%; bottom: 50%;
-            transform: translate(-50%, -50%); font-size: 17px; opacity: 0; transition: all 0.5s ease;
+            visibility: hidden; 
+            min-width: 300px; /* 稍微加宽一点 */
+            background-color: #333; 
+            color: #fff; 
+            text-align: center;
+            border-radius: 50px; /* 变成圆角矩形，更现代 */
+            padding: 12px 30px; 
+            
+            /* 关键修改：位置移到上方，层级设为最高 */
+            position: fixed; 
+            z-index: 10000 !important; /* 确保在所有卡牌上面 */
+            left: 50%; 
+            top: 15%; /* 放在屏幕上方 15% 的位置，避开手牌 */
+            transform: translateX(-50%); /* 只水平居中 */
+            
+            font-size: 16px; 
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3); /* 加点阴影更清晰 */
+            opacity: 0; 
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.27, 1.55); /* 增加一点弹跳动画 */
         }
 
-        .toast.show { visibility: visible; opacity: 1; }
+        /* 显示状态 */
+        .toast.show { 
+            visibility: visible; 
+            opacity: 1; 
+            top: 18%; /* 出现时稍微往下滑一点点，增加动感 */
+        }
 
         .discard-pile-viewer {
             position: fixed; inset: 0; background-color: rgba(0,0,0,0.7); z-index: 200;
@@ -361,6 +416,12 @@
             list-style-type: disc;
             padding-left: 20px;
         }
+
+        .toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 15px 25px; background: rgba(0,0,0,0.8); color: white; border-radius: 8px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 100; text-align: center;}
+        .toast.show { opacity: 1; }
+        #card-tooltip { position: fixed; z-index: 200; pointer-events: none; background: rgba(0,0,0,0.9); color: white; padding: 10px; border-radius: 5px; font-size: 14px; max-width: 200px; display: none; }
+        #card-tooltip.visible { display: block; }
+        .hidden { display: none !important; }
     </style>
 
 </head>
@@ -368,7 +429,7 @@
 
     <!-- SECTION: START SCREEN -->
     <div id="start-screen" class="fixed inset-0 z-50 fullscreen-overlay">
-        <div id="start-screen-bg-container" class="w-full h-full fullscreen-overlay">
+        <div id="start-screen-bg-container" class="w-full h-full fullscreen-overlay bg-cover bg-no-repeat bg-center flex flex-col justify-center items-center">
              <div class="text-center p-8 bg-white/70 rounded-lg backdrop-blur-sm flex flex-col items-center">
                 <h1 class="text-5xl font-bold text-green-700 mb-6">绿点校园环保卡牌</h1>
                 <button id="init-game-button" class="px-10 py-4 bg-green-600 text-white text-2xl font-bold rounded-lg shadow-xl hover:bg-green-700 transition-transform hover:scale-105">开始游戏</button>
@@ -379,84 +440,82 @@
     </div>
 
     <!-- SECTION: MAIN GAME CONTAINER -->
-    <div id="game-container" class="container mx-auto p-4 min-h-screen flex flex-col justify-between hidden">
+    <div id="game-container" class="w-full h-full flex flex-col justify-between hidden bg-green-50 overflow-hidden relative">
         
-        <!-- Top Right Controls -->
-        <div class="absolute top-4 right-4 flex items-center gap-4 z-10">
-            <button id="show-rules-button-game" class="px-4 py-2 bg-yellow-400 text-gray-800 font-bold rounded-lg shadow-md hover:bg-yellow-500 transition-all">游戏规则</button>
-            <button id="end-game-now-button" class="px-4 py-2 bg-gray-500 text-white font-bold rounded-lg shadow-md hover:bg-gray-600 transition-all" disabled>结束游戏</button>
-        </div>
-        
-        <!-- Opponent Area -->
-        <div id="opponent-area">
-            <div class="flex justify-between items-center mb-2">
-                <div class="text-center w-1/3"><h2 class="text-xl font-bold">AI 玩家</h2><p class="text-lg">减碳量: <span id="ai-score" class="font-bold text-green-600">0</span> kg</p></div>
-                <div class="text-center w-1/3 relative">
-                    <h1 class="text-3xl font-bold text-green-700">绿点校园环保卡牌</h1>
-                    <p id="game-status" class="text-gray-600 text-lg font-semibold"></p>
-                    <div id="game-info" class="text-sm text-gray-500">
-                        <span>牌库: <span id="deck-count">54</span></span> | 
-                        <span>弃牌堆: <span id="discard-count">0</span></span> |
-                        <span>回合: <span id="turn-counter">0</span></span>
-                    </div>
-                    <div id="event-display-panel" class="absolute text-center p-3 rounded-lg shadow-md transition-all duration-500 opacity-0 pointer-events-none" style="top: 110px; left: 50%; transform: translateX(-50%); width: 350px; z-index: 20;">
-                        <h3 id="event-title" class="font-bold text-lg"></h3>
-                        <p id="event-description" class="text-sm"></p>
+        <div id="opponent-area" class="w-full flex flex-col relative bg-green-100/50 border-b border-green-200 pb-2">
+            <div class="flex justify-between items-center px-4 py-2">
+                <div class="flex flex-col">
+                    <span class="font-bold text-gray-700">AI 对手</span>
+                    <span class="text-sm">减碳量: <span id="ai-score" class="text-green-600 font-bold text-lg">0</span></span>
+                </div>
+                <div class="text-center">
+                   <div id="game-status" class="font-bold text-xl text-green-800">游戏开始</div>
+                    <div class="text-xs text-gray-500 mt-1">
+                        牌库:<span id="deck-count">0</span> | 回合:<span id="turn-counter">0</span>
                     </div>
                 </div>
-                <div class="w-1/3"></div> <!-- Placeholder for layout balance -->
+                <div>
+                     <button id="show-rules-button-game" class="text-xs bg-yellow-400 px-3 py-1 rounded shadow">规则</button>
+                    <button id="end-game-now-button" class="text-xs bg-gray-500 text-white px-3 py-1 rounded shadow ml-2">结束</button>
+                </div>
             </div>
-            <div id="ai-hand" class="hand-container"></div>
+            
+            <div id="ai-hand"></div>
         </div>
 
-        <!-- Center Table Area -->
-        <div id="center-area" class="flex items-center justify-start gap-8 my-2">
-            <div id="deck-and-discard" class="flex flex-col gap-4">
-                <div id="deck-container" class="w-[160px] h-[240px] cursor-pointer" title="牌库">
-                    <div id="deck-back-preview" class="card w-full h-full"></div>
+        <div id="center-area" class="w-full relative">
+            
+            <div class="absolute left-4 top-1/2 transform -translate-y-1/2 flex flex-col gap-4">
+                 <div id="deck-container" title="牌库" class="relative transition-transform hover:scale-105">
+                    <div id="deck-back-preview" class="card"></div>
+                    <div class="absolute -bottom-6 w-full text-center text-xs font-bold text-gray-500">牌库</div>
                 </div>
-                 <div id="discard-pile-container" class="w-[160px] h-[240px] bg-gray-300/50 rounded-lg border-2 border-gray-400 border-dashed flex items-center justify-center cursor-pointer" title="弃牌堆">
-                    <div id="discard-pile-preview" class="card w-full h-full opacity-0"></div>
+                <div id="discard-pile-container" title="弃牌堆" class="relative transition-transform hover:scale-105">
+                    <div id="discard-pile-preview" class="card opacity-0"></div>
+                     <div class="absolute -bottom-6 w-full text-center text-xs font-bold text-gray-500">弃牌</div>
                 </div>
             </div>
-            <div id="play-area-container" class="play-area-container flex-grow">
-                <div class="play-area-zone border-r-2 border-dashed border-gray-400">
-                    <div class="zone-label">原则牌出牌区</div>
+
+            <div id="play-area-container" class="play-area-container flex gap-8 ml-24 pr-4"> <div class="play-area-zone flex flex-col items-center">
+                    <div class="zone-label">原则牌</div>
                     <div id="play-area-principle" class="play-area-cards"></div>
                 </div>
-                <div class="play-area-zone">
-                    <div class="zone-label">行动牌出牌区</div>
+                <div class="play-area-zone flex flex-col items-center">
+                    <div class="zone-label">行动牌</div>
                     <div id="play-area-action" class="play-area-cards"></div>
                 </div>
             </div>
+
+            <div id="event-display-panel" class="absolute top-0 left-1/2 transform -translate-x-1/2 mt-2 p-2 rounded shadow bg-white/90 text-center opacity-0 transition-opacity pointer-events-none z-10 max-w-sm">
+                <h3 id="event-title" class="font-bold text-sm text-green-800"></h3>
+                <p id="event-description" class="text-xs text-gray-600"></p>
+            </div>
         </div>
 
-        <!-- Player Area -->
-        <div id="player-area" class="flex flex-col items-center">
-            <div id="player-hand" class="hand-container"></div>
-            <div id="controls" class="flex gap-4 my-2">
-                <button id="play-button" class="px-8 py-4 bg-blue-600 text-white text-xl font-bold rounded-lg shadow-md hover:bg-blue-700 transition-all" disabled>出 牌</button>
-                <button id="discard-button" class="px-6 py-3 bg-red-500 text-white font-bold rounded-lg shadow-md hover:bg-red-600 transition-all self-center" disabled>弃牌</button>
+        <div id="player-area" class="w-full flex flex-col items-center relative bg-white/30 pt-2">
+            
+            <div id="player-hand"></div>
+
+            <div id="controls" class="flex gap-4 z-20 my-2">
+                <button id="play-button" class="px-8 py-2 bg-blue-600 text-white text-lg font-bold rounded-full shadow-lg hover:bg-blue-700 hover:-translate-y-1 transition-all border-2 border-white" disabled>出 牌</button>
+                <button id="discard-button" class="px-6 py-2 bg-red-500 text-white text-lg font-bold rounded-full shadow-lg hover:bg-red-600 hover:-translate-y-1 transition-all border-2 border-white" disabled>弃 牌</button>
             </div>
-            <div class="flex justify-between items-center mt-1 w-full">
-                <div class="flex items-center gap-6">
-                    <div class="text-center">
-                        <h2 class="text-xl font-bold">我</h2>
-                        <p class="text-lg">减碳量: <span id="player-score" class="font-bold text-green-600">0</span> kg</p>
-                    </div>
-                    <div class="text-lg font-bold text-red-600 bg-white/80 px-4 py-2 rounded-lg shadow">
-                        <i class="fas fa-clock mr-2"></i>游戏剩余: <span id="game-timer">15:00</span>
-                    </div>
+
+            <div class="w-full flex justify-between items-end px-4 py-2 bg-white/80 backdrop-blur">
+                <div class="flex flex-col">
+                    <span class="text-xl font-bold text-blue-900">我</span>
+                    <span class="text-sm">减碳量: <span id="player-score" class="text-blue-600 font-bold text-xl">0</span></span>
                 </div>
-                 <div class="w-48 text-center text-xl font-bold text-orange-500">
-                    回合剩余: <span id="turn-timer">60</span>s
-                 </div>
+                <div class="flex flex-col items-end">
+                    <div class="text-orange-600 font-bold">回合倒计时: <span id="turn-timer">60</span>s</div>
+                    <div class="text-gray-500 text-xs">总游戏时间: <span id="game-timer">15:00</span></div>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- SECTION: END SCREEN (SUMMARY) -->
-    <div id="end-screen" class="fixed inset-0 z-40 fullscreen-overlay bg-gray-50 p-8 hidden">
+    <div id="end-screen" class="fixed inset-0 z-40 fullscreen-overlay bg-gray-50 p-8 hidden bg-cover bg-no-repeat bg-center flex flex-col justify-center items-center">
         <div class="text-center max-w-4xl mx-auto">
             <h2 id="end-game-message" class="text-4xl font-bold text-green-700 mb-8"></h2>
             <p class="text-6xl text-gray-700 font-bold">今天，你践行可持续生活了吗？</p>
@@ -603,7 +662,7 @@
             playerScore: document.getElementById('player-score'),
             aiScore: document.getElementById('ai-score'),
             deckCount: document.getElementById('deck-count'),
-            discardCount: document.getElementById('discard-count'),
+           
             gameStatus: document.getElementById('game-status'),
             turnCounter: document.getElementById('turn-counter'),
             toast: document.getElementById('toast'),
@@ -1430,7 +1489,7 @@
             elements.playerScore.textContent = gameState.player.score;
             elements.aiScore.textContent = gameState.ai.score;
             elements.deckCount.textContent = gameState.deck.length;
-            elements.discardCount.textContent = gameState.discardPile.length;
+            
             elements.turnCounter.textContent = gameState.turnCount;
 
             if(gameState.discardPile.length > 0) {
@@ -1660,6 +1719,19 @@
         async function animateCardPlay(cards, sourceHandElement) {
             const isPlayer = sourceHandElement === elements.playerHand;
             
+            // 1. 动态计算缩放比例 (Scale Ratio)
+            // 我们在出牌区创建一个临时卡牌，量一下它应该有多大
+            const tempMeasureCard = document.createElement('div');
+            tempMeasureCard.className = 'card';
+            tempMeasureCard.style.visibility = 'hidden';
+            tempMeasureCard.style.position = 'absolute'; // 防止影响布局
+            elements.playAreaAction.appendChild(tempMeasureCard);
+            
+            // 获取出牌区卡牌的标准宽度
+            const targetWidth = tempMeasureCard.getBoundingClientRect().width;
+            // 用完立即删除
+            tempMeasureCard.remove(); 
+
             let principleCardForDisplay = null;
             if (checkPrincipleCombo(cards).valid) {
                  principleCardForDisplay = cards.find(c => c.type === '原则牌');
@@ -1678,10 +1750,18 @@
                         cardEl = highlightedCards[index];
                     }
 
-                    if (!cardEl) { resolve(); return; }
+                    if (!cardEl) { 
+                        console.warn("Animation skipped: Card element not found");
+                        resolve(); 
+                        return; 
+                    }
 
                     const startRect = cardEl.getBoundingClientRect();
                     
+                    // 计算从“当前大小”到“目标大小”的缩放比例
+                    // 比如：目标宽度 100px / 起始宽度 150px = 0.66 (缩小)
+                    const scaleRatio = targetWidth / startRect.width;
+
                     const targetArea = (card === principleCardForDisplay) ? elements.playAreaPrinciple : elements.playAreaAction;
                     const targetRect = targetArea.getBoundingClientRect();
                     
@@ -1689,22 +1769,33 @@
                     clone.classList.add('card-clone');
                     document.body.appendChild(clone);
                     
+                    // 设置克隆体的初始位置和大小（和手牌一模一样）
                     clone.style.left = `${startRect.left}px`;
                     clone.style.top = `${startRect.top}px`;
+                    clone.style.width = `${startRect.width}px`;
+                    clone.style.height = `${startRect.height}px`;
+                    clone.style.transformOrigin = 'center center'; // 确保从中心缩小
                     
                     cardEl.style.opacity = '0';
 
                     requestAnimationFrame(() => {
+                        // 计算位移：让克隆体的中心点 飞到 目标区域的中心点
                         const targetX = targetRect.left + (targetRect.width / 2) - (startRect.width / 2);
                         const targetY = targetRect.top + (targetRect.height / 2) - (startRect.height / 2);
-                        const deltaX = targetX - startRect.left;
-                        const deltaY = targetY - startRect.top;
-                        clone.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.1)`;
+                        
+                        // 应用位移 + 准确的缩放比例
+                        clone.style.transform = `translate(${targetX - startRect.left}px, ${targetY - startRect.top}px) scale(${scaleRatio})`;
 
-                        clone.addEventListener('transitionend', () => {
-                            clone.remove();
+                        let isResolved = false;
+                        const finishAnimation = () => {
+                            if (isResolved) return;
+                            isResolved = true;
+                            if(clone && clone.parentNode) clone.remove();
                             resolve();
-                        }, { once: true });
+                        };
+
+                        clone.addEventListener('transitionend', finishAnimation, { once: true });
+                        setTimeout(finishAnimation, 650);
                     });
                 });
             });

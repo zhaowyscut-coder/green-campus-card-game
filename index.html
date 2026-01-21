@@ -1,0 +1,1788 @@
+<!DOCTYPE html>
+<!--
+* ===================================================================
+* File: index.html
+* Project: 绿点校园环保卡牌 (Green Campus Environmental Card Game)
+* Description: A web-based educational card game designed to teach
+* youth about sustainable living practices through
+* engaging gameplay. This file contains the complete
+* structure, styling, and logic for the game.
+*
+* File Encoding Note: Please save this file with UTF-8 encoding to
+* prevent character display issues (乱码).
+*
+* ===================================================================
+-->
+<html lang="zh-CN">
+<head>
+    <!-- Meta Information -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="绿点校园环保卡牌：一款寓教于乐的网页卡牌游戏，旨在提升青少年的环保意识。">
+    <meta name="keywords" content="环保, 可持续, 卡牌游戏, 教育游戏, 低碳生活">
+    <title>绿点校园环保卡牌</title>
+
+    <!-- External Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+    <!-- Internal Styles -->
+    <style>
+        /*
+         * -----------------------------------------------------------------
+         * FONT AND BASE STYLES
+         * -----------------------------------------------------------------
+         */
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+        
+        body {
+            font-family: 'Noto Sans SC', sans-serif;
+            background-color: #f0fdf4;
+            overflow: hidden; /* Prevent scrollbars during animations */
+        }
+
+        /*
+         * -----------------------------------------------------------------
+         * FULLSCREEN OVERLAY STYLES
+         * -----------------------------------------------------------------
+         */
+        .fullscreen-overlay {
+            background-color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            transition: opacity 0.5s ease;
+        }
+
+        /*
+         * -----------------------------------------------------------------
+         * CARD STYLES
+         * -----------------------------------------------------------------
+         */
+        .card {
+            width: 160px; /* Resized for better readability */
+            height: 240px; /* Resized for better readability */
+            border-radius: 12px;
+            background-color: #e2e8f0;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 3px solid transparent;
+            background-size: cover;
+            background-position: center;
+            position: relative;
+        }
+
+        .card.selected {
+            transform: translateY(-20px) scale(1.05);
+            box-shadow: 0 8px 16px rgba(34, 197, 94, 0.3);
+            border-color: #22c55e;
+        }
+        
+        .card-clone {
+            position: fixed;
+            z-index: 1000;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        .card.stealable:hover, .card.recoverable:hover {
+            transform: scale(1.1);
+            border-color: #f59e0b;
+            box-shadow: 0 8px 16px rgba(245, 158, 11, 0.4);
+        }
+
+        /*
+         * -----------------------------------------------------------------
+         * PLAYER AND AI HAND STYLES
+         * -----------------------------------------------------------------
+         */
+        .hand-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: -130px; /* Adjusted for new card size */
+            padding: 10px;
+            min-height: 260px; /* Adjusted height */
+            position: relative;
+        }
+
+        #player-hand .card { 
+            transition: all 0.3s ease; 
+        }
+
+        #player-hand .card:hover {
+            transform: translateY(-40px) scale(1.15); /* Restored hover zoom effect */
+            z-index: 10;
+        }
+        
+        /*
+         * -----------------------------------------------------------------
+         * GAME BOARD AREA STYLES
+         * -----------------------------------------------------------------
+         */
+        .play-area-container {
+            min-height: 260px; /* Adjusted height */
+            background-color: rgba(255, 255, 255, 0.5);
+            border: 2px dashed #a7f3d0;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1.5rem;
+            padding: 1.5rem;
+            width: 100%;
+        }
+        
+        .play-area-zone {
+            width: 50%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            position: relative;
+        }
+        
+        .play-area-zone .zone-label {
+            font-weight: bold;
+            color: #374151;
+            background-color: rgba(255,255,255,0.7);
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+        }
+
+        .play-area-cards {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        /*
+         * -----------------------------------------------------------------
+         * UI COMPONENTS STYLES
+         * -----------------------------------------------------------------
+         */
+        .toast {
+            visibility: hidden; min-width: 250px; background-color: #333; color: #fff; text-align: center;
+            border-radius: 8px; padding: 16px; position: fixed; z-index: 100; left: 50%; bottom: 50%;
+            transform: translate(-50%, -50%); font-size: 17px; opacity: 0; transition: all 0.5s ease;
+        }
+
+        .toast.show { visibility: visible; opacity: 1; }
+
+        .discard-pile-viewer {
+            position: fixed; inset: 0; background-color: rgba(0,0,0,0.7); z-index: 200;
+            display: flex; align-items: center; justify-content: center;
+            flex-direction: column; gap: 1rem;
+        }
+        
+        .discard-pile-viewer.hidden {
+            display: none;
+        }
+
+        /*
+         * -----------------------------------------------------------------
+         * UPGRADED TOOLTIP STYLES
+         * -----------------------------------------------------------------
+         */
+        #card-tooltip {
+            background: linear-gradient(145deg, #3a3a3a, #2c2c2c);
+            color: #f0f0f0;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid #555;
+            font-family: 'Noto Sans SC', sans-serif;
+            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.95);
+            position: fixed; /* Ensure it's positioned relative to viewport */
+            z-index: 500;
+            pointer-events: none;
+            max-width: 250px;
+        }
+
+        #card-tooltip.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: scale(1);
+        }
+
+        /* Tooltip 内容的基础样式 */
+        .tooltip-content {
+            padding: 12px;
+            text-align: left;
+        }
+
+        /* 基础信息部分的样式 */
+        .tooltip-info {
+            font-size: 14px;
+            color: #ccc;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #4a4a4a;
+            margin-bottom: 8px;
+        }
+
+        .tooltip-info strong {
+            color: #fff;
+        }
+
+        /* 特殊技能部分的突出样式 */
+        .tooltip-special {
+            font-size: 15px;
+            font-weight: bold;
+            color: #ffd700; /* 醒目的金色 */
+            background-color: rgba(255, 215, 0, 0.1);
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .tooltip-special::before {
+            content: '★ '; /* 添加一个星星图标前缀 */
+            font-family: "Font Awesome 6 Free"; /* 确保 Font Awesome 被正确引用 */
+        }
+        
+        .hidden {
+            display: none;
+        }
+
+        /*
+         * -----------------------------------------------------------------
+         * EVENT DISPLAY PANEL STYLES
+         * -----------------------------------------------------------------
+         */
+        #event-display-panel.visible {
+            opacity: 1;
+            pointer-events: auto; /* Make it interactable if needed */
+        }
+
+        #event-display-panel.event-positive {
+            background-color: rgba(217, 249, 228, 0.9); /* Light Green */
+            color: #065f46; /* Dark Green */
+            border: 1px solid #6ee7b7;
+        }
+
+        #event-display-panel.event-negative {
+            background-color: rgba(254, 226, 226, 0.9); /* Light Red */
+            color: #991b1b; /* Dark Red */
+            border: 1px solid #fca5a5;
+        }
+
+        #event-display-panel.event-neutral {
+            background-color: rgba(224, 231, 255, 0.9); /* Light Indigo */
+            color: #312e81; /* Dark Indigo */
+            border: 1px solid #a5b4fc;
+        }
+        
+        /*
+         * -----------------------------------------------------------------
+         * EVENT ANNOUNCEMENT STYLES
+         * -----------------------------------------------------------------
+         */
+        #event-announcement.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        #event-announcement.visible #event-announcement-content {
+            transform: scale(1);
+        }
+
+        #event-announcement-content.event-positive {
+            background-color: #166534; /* Dark Green */
+            color: #dcfce7; /* Light Green text */
+            border: 2px solid #4ade80;
+        }
+        #event-announcement-content.event-negative {
+            background-color: #991b1b; /* Dark Red */
+            color: #fee2e2; /* Light Red text */
+            border: 2px solid #f87171;
+        }
+        #event-announcement-content.event-neutral {
+            background-color: #312e81; /* Dark Indigo */
+            color: #e0e7ff; /* Light Indigo text */
+            border: 2px solid #818cf8;
+        }
+
+        /*
+         * -----------------------------------------------------------------
+         * ANIMATION STYLES
+         * -----------------------------------------------------------------
+         */
+        .card.ai-thinking {
+            transform: translateY(-20px);
+            box-shadow: 0 8px 16px rgba(234, 179, 8, 0.5); /* Yellow glow */
+            border-color: #f59e0b;
+        }
+        
+        .play-area-cards .card {
+            animation: card-appear 0.5s cubic-bezier(0.250, 0.460, 0.450, 0.940) both;
+            animation-delay: 0.5s; /* Delay appearance until travel animation is done */
+        }
+
+        @keyframes card-appear {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+        
+        /*
+         * -----------------------------------------------------------------
+         * RULES MODAL STYLES
+         * -----------------------------------------------------------------
+         */
+        #rules-modal.hidden {
+            display: none;
+        }
+
+        #rules-text h4 {
+            font-size: 1.25rem; /* 20px */
+            font-weight: 700;
+            color: #15803d; /* a darker green */
+            border-bottom: 2px solid #a7f3d0;
+            padding-bottom: 8px;
+            margin-top: 16px;
+        }
+
+        #rules-text ul {
+            list-style-type: disc;
+            padding-left: 20px;
+        }
+    </style>
+
+</head>
+<body class="bg-green-50 text-gray-800">
+
+    <!-- SECTION: START SCREEN -->
+    <div id="start-screen" class="fixed inset-0 z-50 fullscreen-overlay">
+        <div id="start-screen-bg-container" class="w-full h-full fullscreen-overlay">
+             <div class="text-center p-8 bg-white/70 rounded-lg backdrop-blur-sm flex flex-col items-center">
+                <h1 class="text-5xl font-bold text-green-700 mb-6">绿点校园环保卡牌</h1>
+                <button id="init-game-button" class="px-10 py-4 bg-green-600 text-white text-2xl font-bold rounded-lg shadow-xl hover:bg-green-700 transition-transform hover:scale-105">开始游戏</button>
+                <button id="show-rules-button-start" class="mt-4 px-6 py-2 bg-gray-200 text-gray-700 font-bold rounded-lg shadow-md hover:bg-gray-300 transition-all">游戏规则</button>
+                <div id="logo-container" class="mt-8 w-80 h-80 bg-contain bg-no-repeat bg-center"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION: MAIN GAME CONTAINER -->
+    <div id="game-container" class="container mx-auto p-4 min-h-screen flex flex-col justify-between hidden">
+        
+        <!-- Top Right Controls -->
+        <div class="absolute top-4 right-4 flex items-center gap-4 z-10">
+            <button id="show-rules-button-game" class="px-4 py-2 bg-yellow-400 text-gray-800 font-bold rounded-lg shadow-md hover:bg-yellow-500 transition-all">游戏规则</button>
+            <button id="end-game-now-button" class="px-4 py-2 bg-gray-500 text-white font-bold rounded-lg shadow-md hover:bg-gray-600 transition-all" disabled>结束游戏</button>
+        </div>
+        
+        <!-- Opponent Area -->
+        <div id="opponent-area">
+            <div class="flex justify-between items-center mb-2">
+                <div class="text-center w-1/3"><h2 class="text-xl font-bold">AI 玩家</h2><p class="text-lg">减碳量: <span id="ai-score" class="font-bold text-green-600">0</span> kg</p></div>
+                <div class="text-center w-1/3 relative">
+                    <h1 class="text-3xl font-bold text-green-700">绿点校园环保卡牌</h1>
+                    <p id="game-status" class="text-gray-600 text-lg font-semibold"></p>
+                    <div id="game-info" class="text-sm text-gray-500">
+                        <span>牌库: <span id="deck-count">54</span></span> | 
+                        <span>弃牌堆: <span id="discard-count">0</span></span> |
+                        <span>回合: <span id="turn-counter">0</span></span>
+                    </div>
+                    <div id="event-display-panel" class="absolute text-center p-3 rounded-lg shadow-md transition-all duration-500 opacity-0 pointer-events-none" style="top: 110px; left: 50%; transform: translateX(-50%); width: 350px; z-index: 20;">
+                        <h3 id="event-title" class="font-bold text-lg"></h3>
+                        <p id="event-description" class="text-sm"></p>
+                    </div>
+                </div>
+                <div class="w-1/3"></div> <!-- Placeholder for layout balance -->
+            </div>
+            <div id="ai-hand" class="hand-container"></div>
+        </div>
+
+        <!-- Center Table Area -->
+        <div id="center-area" class="flex items-center justify-start gap-8 my-2">
+            <div id="deck-and-discard" class="flex flex-col gap-4">
+                <div id="deck-container" class="w-[160px] h-[240px] cursor-pointer" title="牌库">
+                    <div id="deck-back-preview" class="card w-full h-full"></div>
+                </div>
+                 <div id="discard-pile-container" class="w-[160px] h-[240px] bg-gray-300/50 rounded-lg border-2 border-gray-400 border-dashed flex items-center justify-center cursor-pointer" title="弃牌堆">
+                    <div id="discard-pile-preview" class="card w-full h-full opacity-0"></div>
+                </div>
+            </div>
+            <div id="play-area-container" class="play-area-container flex-grow">
+                <div class="play-area-zone border-r-2 border-dashed border-gray-400">
+                    <div class="zone-label">原则牌出牌区</div>
+                    <div id="play-area-principle" class="play-area-cards"></div>
+                </div>
+                <div class="play-area-zone">
+                    <div class="zone-label">行动牌出牌区</div>
+                    <div id="play-area-action" class="play-area-cards"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Player Area -->
+        <div id="player-area" class="flex flex-col items-center">
+            <div id="player-hand" class="hand-container"></div>
+            <div id="controls" class="flex gap-4 my-2">
+                <button id="play-button" class="px-8 py-4 bg-blue-600 text-white text-xl font-bold rounded-lg shadow-md hover:bg-blue-700 transition-all" disabled>出 牌</button>
+                <button id="discard-button" class="px-6 py-3 bg-red-500 text-white font-bold rounded-lg shadow-md hover:bg-red-600 transition-all self-center" disabled>弃牌</button>
+            </div>
+            <div class="flex justify-between items-center mt-1 w-full">
+                <div class="flex items-center gap-6">
+                    <div class="text-center">
+                        <h2 class="text-xl font-bold">我</h2>
+                        <p class="text-lg">减碳量: <span id="player-score" class="font-bold text-green-600">0</span> kg</p>
+                    </div>
+                    <div class="text-lg font-bold text-red-600 bg-white/80 px-4 py-2 rounded-lg shadow">
+                        <i class="fas fa-clock mr-2"></i>游戏剩余: <span id="game-timer">15:00</span>
+                    </div>
+                </div>
+                 <div class="w-48 text-center text-xl font-bold text-orange-500">
+                    回合剩余: <span id="turn-timer">60</span>s
+                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SECTION: END SCREEN (SUMMARY) -->
+    <div id="end-screen" class="fixed inset-0 z-40 fullscreen-overlay bg-gray-50 p-8 hidden">
+        <div class="text-center max-w-4xl mx-auto">
+            <h2 id="end-game-message" class="text-4xl font-bold text-green-700 mb-8"></h2>
+            <p class="text-6xl text-gray-700 font-bold">今天，你践行可持续生活了吗？</p>
+            <button id="restart-button" class="mt-12 px-10 py-4 bg-green-600 text-white text-2xl font-bold rounded-lg shadow-xl hover:bg-green-700 transition-transform hover:scale-105">重新开始</button>
+        </div>
+    </div>
+    
+    <!-- SECTION: UTILITY ELEMENTS -->
+    <div id="toast" class="toast"></div>
+    <div id="card-tooltip"></div>
+    
+    <div id="rules-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden">
+        <div id="rules-modal-overlay" class="absolute inset-0 bg-black/60"></div>
+        
+        <div class="relative bg-white rounded-2xl shadow-2xl w-11/12 max-w-4xl max-h-[90vh] p-8 overflow-y-auto">
+            <button id="close-rules-button" class="absolute top-4 right-4 text-3xl text-gray-500 hover:text-gray-800">&times;</button>
+            
+            <h2 class="text-3xl font-bold text-green-700 mb-6 text-center">游戏规则说明</h2>
+            
+            <div id="rules-text" class="space-y-4 text-gray-700">
+                <h4><strong><i class="fas fa-bullseye mr-2"></i>游戏目标</strong></h4>
+                <p>在15分钟游戏时间内，通过打出特定的卡牌组合，获得比AI对手更高的“减碳量”积分。当任意一方分数率先达到350分，或15分钟倒计时结束时，游戏结束，分数高者获胜。</p>
+                
+                <h4><strong><i class="fas fa-layer-group mr-2"></i>卡牌类型</strong></h4>
+                <ul>
+                    <li><strong>行动牌:</strong> 基础卡牌，分为“衣、食、住、行”四个花色，点数为 A, 2-10。</li>
+                    <li><strong>原则牌:</strong> 高级卡牌，同样分四个花色，点数为 J, Q, K，拥有更高的基础分数。</li>
+                    <li><strong>万能牌:</strong> 小王和大王，可以作为任何花色、任何点数的牌来凑成组合。</li>
+                </ul>
+
+                <h4><strong><i class="fas fa-check-double mr-2"></i>有效的出牌组合</strong></h4>
+                <ul>
+                    <li><strong>组合 (Sets):</strong> 3张或以上点数相同、但花色不同的牌。</li>
+                    <li><strong>同花顺 (Straights):</strong> 3张或以上花色相同、且点数连续的牌。</li>
+                    <li><strong>原则组合 (Principle Combo):</strong> 1张原则牌 + 1至3张同花色的行动牌。（万能牌作为原则牌时，可带任意数量的行动牌）</li>
+                </ul>
+
+                <h4><strong><i class="fas fa-star mr-2"></i>特殊卡牌技能</strong></h4>
+                <ul>
+                    <li><strong>单张万能牌:</strong> 打出单张万能牌可以跳过对方的回合。</li>
+                    <li><strong>人走灯熄灭:</strong> 效果同上，跳过对方回合。</li>
+                    <li><strong>减少购买数量:</strong> 对方下次出牌时会受到限制。</li>
+                    <li><strong>购买本地食材:</strong> 打出后，你可以额外摸一张牌。</li>
+                    <li><strong>绿色植物/外出拼车:</strong> 打出后，可以从对方那里获得一张牌作为启发。</li>
+                    <li><strong>参与衣物回收:</strong> 打出后，可以从弃牌堆里拿回一张牌。</li>
+                    <li><strong>融入生态自然环境:</strong> 若下回合再次打出“住”花色的原则组合，分数翻倍。</li>
+                </ul>
+
+                <h4><strong><i class="fas fa-bolt mr-2"></i>环境事件系统</strong></h4>
+                <p>为了增加游戏的趣味性和挑战性，对局中会周期性地触发随机的“环境事件”。事件激活时，其具体规则会显示在屏幕顶部的提示面板中，请注意查看。事件类型主要包括：</p>
+                <ul>
+                    <li><strong>正面事件 (如 世界地球日):</strong> 通常会带来临时的增益效果，例如特定花色的卡牌可以获得更高的减碳量分数。</li>
+                    <li><strong>负面事件 (如 极端天气):</strong> 会带来一些挑战，比如要求玩家必须打出特定类型的卡牌来“应对”事件，否则可能会被扣分。</li>
+                    <li><strong>合作事件 (如 校园节能周):</strong> 提出一个需要双方玩家共同努力完成的目标，如果成功达成，则双方都能获得丰厚的奖励。</li>
+                    <li><strong>环保浪潮 (技术突破):</strong> 事件激活后，所有原则牌在组成“原则组合”时，都可以携带不限数量的同花色行动牌。</li>
+                </ul>
+
+                 <h4><strong><i class="fas fa-trophy mr-2"></i>特殊奖励规则</strong></h4>
+                <ul>
+                    <li><strong>清空手牌 (Going Out):</strong> 当你通过一次出牌将手牌全部出完时，会获得大量额外分数奖励，并立即补满手牌继续游戏！</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    
+    <div id="discard-pile-viewer" class="discard-pile-viewer hidden">
+        <div class="relative bg-white/90 rounded-2xl shadow-2xl p-8 w-11/12 max-w-6xl">
+            <h3 class="text-2xl font-bold text-green-700 mb-6 text-center">选择一张牌回收</h3>
+            <div id="discard-pile-grid" class="discard-pile-grid"></div>
+        </div>
+    </div>
+
+    <div id="event-announcement" class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm opacity-0 pointer-events-none transition-opacity duration-500">
+        <div id="event-announcement-content" class="text-center p-8 rounded-2xl shadow-2xl max-w-lg transform scale-95 transition-all duration-300">
+            <h2 id="event-announcement-title" class="text-4xl font-bold mb-4"></h2>
+            <p id="event-announcement-description" class="text-lg"></p>
+        </div>
+    </div>
+    
+    <!-- SECTION: JAVASCRIPT LOGIC -->
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // ===================================================================
+        // MODULE: CONFIGURATION
+        // ===================================================================
+        const CONFIG = {
+            TOTAL_GAME_TIME_SECONDS: 900, // 15 minutes
+            PLAYER_TURN_TIME_SECONDS: 60,
+            INITIAL_HAND_SIZE: 7,
+            GOING_OUT_BONUS: 50,
+            WIN_SCORE: 350,
+            COMBO_BONUS: 5,
+            RECOVER_CHOICE_COUNT: 6,
+            ASSET_PATHS: {
+                startScreenBg: 'images/start-bg.jpg', // 路径已修改
+                endScreenBg: 'images/end-bg.jpg', // 路径已修改
+                cardBack: 'images/card-back.png', // 路径已修改
+                logo: 'images/logo.png', // 路径已修改
+                cardImagePrefix: 'images/card_', // 路径已修改
+                cardImageSuffix: '.png',
+            }
+        };
+
+        const eventLibrary = {
+            earth_day: {
+                title: '世界地球日',
+                description: '接下来2回合，“行”或“食”花色牌减碳量x1.5！',
+                type: 'positive'
+            },
+            extreme_weather: {
+                title: '极端天气',
+                description: '所有玩家必须打出点数最高的“住”牌，否则扣15kg！',
+                type: 'negative'
+            },
+            energy_week: {
+                title: '校园节能周',
+                description: '合作任务：4回合内共同获得50kg减碳量，完成后均有奖励！',
+                type: 'neutral'
+            },
+            tech_breakthrough: {
+                title: '环保浪潮',
+                description: '事件期间，所有原则组合的行动牌数量不再受限制！',
+                type: 'positive'
+            }
+        };
+
+        // ===================================================================
+        // MODULE: DOM ELEMENT CACHING
+        // ===================================================================
+        const elements = {
+            startScreen: document.getElementById('start-screen'),
+            initGameButton: document.getElementById('init-game-button'),
+            startScreenBgContainer: document.getElementById('start-screen-bg-container'),
+            gameContainer: document.getElementById('game-container'),
+            endScreen: document.getElementById('end-screen'),
+            endGameMessage: document.getElementById('end-game-message'),
+            restartButton: document.getElementById('restart-button'),
+            playButton: document.getElementById('play-button'),
+            discardButton: document.getElementById('discard-button'),
+            endGameNowButton: document.getElementById('end-game-now-button'),
+            playerHand: document.getElementById('player-hand'),
+            aiHand: document.getElementById('ai-hand'),
+            playerScore: document.getElementById('player-score'),
+            aiScore: document.getElementById('ai-score'),
+            deckCount: document.getElementById('deck-count'),
+            discardCount: document.getElementById('discard-count'),
+            gameStatus: document.getElementById('game-status'),
+            turnCounter: document.getElementById('turn-counter'),
+            toast: document.getElementById('toast'),
+            deckBackPreview: document.getElementById('deck-back-preview'),
+            discardPilePreview: document.getElementById('discard-pile-preview'),
+            discardPileContainer: document.getElementById('discard-pile-container'),
+            playAreaPrinciple: document.getElementById('play-area-principle'),
+            playAreaAction: document.getElementById('play-area-action'),
+            gameTimerDisplay: document.getElementById('game-timer'),
+            turnTimerDisplay: document.getElementById('turn-timer'),
+            logoContainer: document.getElementById('logo-container'),
+            eventDisplayPanel: document.getElementById('event-display-panel'),
+            eventTitle: document.getElementById('event-title'),
+            eventDescription: document.getElementById('event-description'),
+            eventAnnouncement: document.getElementById('event-announcement'),
+            eventAnnouncementContent: document.getElementById('event-announcement-content'),
+            eventAnnouncementTitle: document.getElementById('event-announcement-title'),
+            eventAnnouncementDescription: document.getElementById('event-announcement-description'),
+            cardTooltip: document.getElementById('card-tooltip'),
+            rulesModal: document.getElementById('rules-modal'),
+            closeRulesButton: document.getElementById('close-rules-button'),
+            showRulesButtonStart: document.getElementById('show-rules-button-start'),
+            showRulesButtonGame: document.getElementById('show-rules-button-game'),
+            rulesModalOverlay: document.getElementById('rules-modal-overlay'),
+            discardPileViewer: document.getElementById('discard-pile-viewer'),
+            discardPileGrid: document.getElementById('discard-pile-grid'),
+        };
+
+        // ===================================================================
+        // MODULE: GAME STATE MANAGEMENT
+        // ===================================================================
+        let gameState = {};
+        let gameTimerId, turnTimerId, turnCountdownId;
+        const cardValueMap = { 'a': 1, '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, 'j': 11, 'q': 12, 'k': 13 };
+
+        const cardData = [
+            // 衣
+            { suit: '衣', type: '行动牌', value: 'a', name: '减少购买数量', carbon: 4, skill: 'restrict_opponent', tooltip: '特殊效果：对方玩家的下一次出牌将受到限制。' },
+            { suit: '衣', type: '行动牌', value: '2', name: '参与衣物回收', carbon: 3, skill: 'recover_discard', tooltip: '特殊效果：可以从弃牌堆中选择一张牌加入手牌。' },
+            { suit: '衣', type: '行动牌', value: '3', name: '旧衣改造再利用', carbon: 3 }, { suit: '衣', type: '行动牌', value: '4', name: '二手衣物交易', carbon: 4 }, { suit: '衣', type: '行动牌', value: '5', name: '支持可持续品牌', carbon: 5 }, { suit: '衣', type: '行动牌', value: '6', name: '选择可持续材料', carbon: 4 }, { suit: '衣', type: '行动牌', value: '7', name: '减少使用一次性装饰', carbon: 2 }, { suit: '衣', type: '行动牌', value: '8', name: '购买本地衣物', carbon: 6 }, { suit: '衣', type: '行动牌', value: '9', name: '减少洗涤剂的使用', carbon: 3 }, { suit: '衣', type: '行动牌', value: '10', name: '减少洗涤和烘干', carbon: 4 }, { suit: '衣', type: '原则牌', value: 'j', name: '减少购买新衣服', carbon: 8 }, { suit: '衣', type: '原则牌', value: 'q', name: '使用可持续衣用产品', carbon: 10 }, { suit: '衣', type: '原则牌', value: 'k', name: '降低衣用能源消耗', carbon: 12 },
+            // 食
+            { suit: '食', type: '行动牌', value: 'a', name: '少吃红肉', carbon: 7 }, { suit: '食', type: '行动牌', value: '2', name: '不使用一次性餐具', carbon: 4 }, { suit: '食', type: '行动牌', value: '3', name: '使用蒸煮等低碳的烹饪方式', carbon: 5 }, { suit: '食', type: '行动牌', value: '4', name: '多吃粗粮', carbon: 3 }, { suit: '食', type: '行动牌', value: '5', name: '家庭种植', carbon: 6 },
+            { suit: '食', type: '行动牌', value: '6', name: '购买本地食材', carbon: 5, skill: 'draw_card', tooltip: '特殊效果：打出后，你可以额外摸一张牌。' },
+            { suit: '食', type: '行动牌', value: '7', name: '多吃应季食品', carbon: 4 }, { suit: '食', type: '行动牌', value: '8', name: '使用环保购物袋', carbon: 3 }, { suit: '食', type: '行动牌', value: '9', name: '购买未加工的食物', carbon: 4 }, { suit: '食', type: '行动牌', value: '10', name: '自制饮料', carbon: 3 }, { suit: '食', type: '原则牌', value: 'j', name: '倡导低碳饮食方式', carbon: 8 }, { suit: '食', type: '原则牌', value: 'q', name: '购买本地和可持续生产食材', carbon: 10 }, { suit: '食', type: '原则牌', value: 'k', name: '减少食用资源浪费', carbon: 12 },
+            // 住
+            { suit: '住', type: '行动牌', value: 'a', name: '人走灯熄灭', carbon: 3, skill: 'skip_turn', tooltip: '特殊效果：跳过对方的下一个回合。' },
+            { suit: '住', type: '行动牌', value: '2', name: '合理用水', carbon: 4 }, { suit: '住', type: '行动牌', value: '3', name: '设备节能', carbon: 5 }, { suit: '住', type: '行动牌', value: '4', name: '自然通风', carbon: 4 },
+            { suit: '住', type: '行动牌', value: '5', name: '绿色植物接引室内', carbon: 2, skill: 'steal_card', tooltip: '特殊效果：可以从对方手里获得一张牌作为启发。' },
+            { suit: '住', type: '行动牌', value: '6', name: '营造绿色公共空间', carbon: 3 }, { suit: '住', type: '行动牌', value: '7', name: '雨水收集', carbon: 4 }, { suit: '住', type: '行动牌', value: '8', name: '减少一次性用品使用', carbon: 3 }, { suit: '住', type: '行动牌', value: '9', name: '垃圾分类使用', carbon: 5 }, { suit: '住', type: '行动牌', value: '10', name: '使用环保装修材料', carbon: 6 }, { suit: '住', type: '原则牌', value: 'j', name: '节能居家理念', carbon: 8 }, { suit: '住', type: '原则牌', value: 'q', name: '重视健康环保', carbon: 10 },
+            { suit: '住', type: '原则牌', value: 'k', name: '融入生态自然环境', carbon: 12, skill: 'prime_next_combo', tooltip: '特殊效果：若下回合再出“住”原则组合，分数翻倍。' },
+            // 行
+            { suit: '行', type: '行动牌', value: 'a', name: '公共交通出行', carbon: 5 }, { suit: '行', type: '行动牌', value: '2', name: '步行上下学', carbon: 3 }, { suit: '行', type: '行动牌', value: '3', name: '设定每日绿色里程数', carbon: 3 },
+            { suit: '行', type: '行动牌', value: '4', name: '外出调研拼车', carbon: 4, skill: 'steal_card', tooltip: '特殊效果：可以从对方手里获得一张牌作为启发。' },
+            { suit: '行', type: '行动牌', value: '5', name: '合理规划假期旅行', carbon: 6 }, { suit: '行', type: '行动牌', value: '6', name: '合并多个出行目的地', carbon: 5 }, { suit: '行', type: '行动牌', value: '7', name: '学习低碳出行知识', carbon: 2 }, { suit: '行', type: '行动牌', value: '8', name: '参加绿色出行社团', carbon: 4 }, { suit: '行', type: '行动牌', value: '9', name: '组织绿色出行观分享', carbon: 2 }, { suit: '行', type: '行动牌', value: '10', name: '积极在社交媒体分享', carbon: 2 }, { suit: '行', type: '原则牌', value: 'j', name: '低碳出行方式', carbon: 8 }, { suit: '行', type: '原则牌', value: 'q', name: '合理出行规划', carbon: 10 }, { suit: '行', type: '原则牌', value: 'k', name: '绿色出行理念', carbon: 12 },
+            // 万能牌
+            { suit: 'joker', type: '万能牌', value: 'dawang', name: '健康', carbon: 15, tooltip: '特殊效果：可当任意牌使用，单独打出可跳过对方回合。' },
+            { suit: 'joker', type: '万能牌', value: 'xiaowang', name: '环保', carbon: 10, tooltip: '特殊效果：可当任意牌使用，单独打出可跳过对方回合。' }
+        ].map((card, index) => {
+            const suitPinyin = { '衣': 'yi', '食': 'shi', '住': 'zhu', '行': 'xing', 'joker': 'joker' };
+            let pinyin = suitPinyin[card.suit];
+            
+            const suffix = CONFIG.ASSET_PATHS.cardImageSuffix;
+            const imagePath = `${CONFIG.ASSET_PATHS.cardImagePrefix}${pinyin}_${card.value}${suffix}`;
+            return { ...card, id: index, image: imagePath };
+        });
+
+        // ===================================================================
+        // MODULE: INITIALIZATION & GAME FLOW
+        // ===================================================================
+        
+        function initializeUI() {
+            elements.deckBackPreview.style.backgroundImage = `url('${CONFIG.ASSET_PATHS.cardBack}')`;
+            elements.logoContainer.style.backgroundImage = `url('${CONFIG.ASSET_PATHS.logo}')`;
+            elements.startScreenBgContainer.style.backgroundImage = `url('${CONFIG.ASSET_PATHS.startScreenBg}')`;
+            elements.endScreen.style.backgroundImage = `url('${CONFIG.ASSET_PATHS.endScreenBg}')`;
+        }
+
+        function transitionToGame() {
+            elements.startScreen.classList.add('opacity-0');
+            setTimeout(() => {
+                elements.startScreen.classList.add('hidden');
+                elements.gameContainer.classList.remove('hidden');
+                startGame();
+            }, 500);
+        }
+
+        function startGame() {
+            gameState.deck = shuffleDeck(createDeck());
+            gameState.discardPile = [];
+            gameState.player = { hand: [], score: 0, isSkipped: false, effect: null };
+            gameState.ai = { hand: [], score: 0, isSkipped: false, effect: null };
+            
+            drawCards(gameState.player, CONFIG.INITIAL_HAND_SIZE);
+            drawCards(gameState.ai, CONFIG.INITIAL_HAND_SIZE);
+            
+            gameState.gameStarted = true;
+            gameState.turn = 'player';
+            gameState.turnCount = 1;
+            gameState.deckLowTriggered = false;
+            gameState.globalEffect = null;
+            gameState.coop_event = null;
+            gameState.lastPlayedSuit = null;
+            gameState.eventResponsePending = false;
+            gameState.eventCooldown = 0;
+            gameState.isStealing = false;
+            gameState.postStealAction = null;
+            gameState.isRecovering = false;
+            gameState.postRecoveryAction = null;
+            gameState.eventScoreTracker = null;
+            gameState.isPrincipleComboUnlimited = false;
+
+
+            updateUI();
+            elements.gameStatus.textContent = "我的回合";
+            elements.playButton.disabled = false;
+            elements.discardButton.disabled = false;
+            elements.endGameNowButton.disabled = false;
+            startTimers();
+        }
+
+        function createDeck() { return [...cardData]; }
+        function shuffleDeck(deck) { for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1));[deck[i], deck[j]] = [deck[j], deck[i]]; } return deck; }
+        
+        function drawCards(player, num) {
+            for (let i = 0; i < num; i++) {
+                if (gameState.deck.length === 0) {
+                    if(gameState.discardPile.length > 0) {
+                        gameState.deck = shuffleDeck(gameState.discardPile);
+                        gameState.discardPile = [];
+                        showToast("牌库已空，弃牌堆已重置为新牌库！", true);
+                    } else {
+                        showToast("牌库和弃牌堆都已空，无法摸牌！", false);
+                        break;
+                    }
+                }
+                player.hand.push(gameState.deck.pop());
+            }
+        }
+
+        // ===================================================================
+        // MODULE: PLAY VALIDATION LOGIC
+        // ===================================================================
+        
+        function getSelectedCards() {
+            const selectedElements = document.querySelectorAll('#player-hand .card.selected');
+            return Array.from(selectedElements).map(el => {
+                const cardId = parseInt(el.dataset.id);
+                return gameState.player.hand.find(c => c.id === cardId);
+            });
+        }
+
+        function validatePlay(cards) {
+            if (cards.length === 0) return { valid: false, message: "请选择要出的牌" };
+
+            const hasSkipSkill = cards.some(c => c.skill === 'skip_turn');
+
+            if (cards.length === 1 && cards[0].type === '万能牌') {
+                return { valid: true, type: 'skip', carbon: cards[0].carbon, message: `打出${cards[0].name}，跳过对方回合！` };
+            }
+            if (hasSkipSkill) {
+                const baseValidation = validatePlay(cards.filter(c => c.skill !== 'skip_turn'));
+                if (cards.length === 1 || baseValidation.valid) {
+                    const totalCarbon = cards.reduce((sum, card) => sum + card.carbon, 0);
+                    return { valid: true, type: 'skip_with_skill', carbon: totalCarbon, message: "组合附带跳过效果！" };
+                }
+            }
+
+            const straightCheck = checkStraight(cards);
+            if (straightCheck.valid) return straightCheck;
+
+            const setCheck = checkSet(cards);
+            if (setCheck.valid) return setCheck;
+            
+            const principleComboCheck = checkPrincipleCombo(cards);
+            if (principleComboCheck.valid) return principleComboCheck;
+
+            return { valid: false, message: "无效的出牌组合！" };
+        }
+
+        function checkStraight(cards) {
+            if (cards.length < 3) return { valid: false };
+            const jokers = cards.filter(c => c.type === '万能牌');
+            const nonJokers = cards.filter(c => c.type !== '万能牌' && c.type !== '原则牌');
+            if (nonJokers.length === 0) return { valid: false };
+
+            const suit = nonJokers[0].suit;
+            if (!nonJokers.every(c => c.suit === suit)) return { valid: false };
+
+            const values = nonJokers.map(c => cardValueMap[c.value]).sort((a, b) => a - b);
+            let jokersNeeded = 0;
+            for (let i = 0; i < values.length - 1; i++) {
+                const diff = values[i+1] - values[i];
+                if (diff > 1) {
+                    jokersNeeded += diff - 1;
+                } else if (diff === 0) {
+                    return { valid: false };
+                }
+            }
+
+            if (jokersNeeded > jokers.length) return { valid: false };
+            
+            const totalCarbon = cards.reduce((sum, card) => sum + card.carbon, 0);
+            return { valid: true, type: 'score', carbon: totalCarbon, message: "同花顺！" };
+        }
+
+        function checkSet(cards) {
+            if (cards.length < 3) return { valid: false };
+            const jokers = cards.filter(c => c.type === '万能牌');
+            const nonJokers = cards.filter(c => c.type !== '万能牌');
+            if (nonJokers.length === 0) return { valid: false };
+
+            const value = nonJokers[0].value;
+            if (!nonJokers.every(c => c.value === value)) return { valid: false };
+            
+            const suits = new Set(nonJokers.map(c => c.suit));
+            if (suits.size !== nonJokers.length) return { valid: false };
+
+            const totalCarbon = cards.reduce((sum, card) => sum + card.carbon, 0);
+            return { valid: true, type: 'score', carbon: totalCarbon, message: "组合！" };
+        }
+
+        function checkPrincipleCombo(cards) {
+            const principles = cards.filter(c => c.type === '原则牌');
+            const actions = cards.filter(c => c.type === '行动牌');
+            const jokers = cards.filter(c => c.type === '万能牌');
+
+            let principleCard;
+            let effectiveActions = [...actions];
+
+            if (principles.length === 1 && jokers.length === 0) {
+                principleCard = principles[0];
+            } else if (principles.length === 1 && jokers.length > 0) {
+                principleCard = principles[0];
+                effectiveActions.push(...jokers);
+            } else if (principles.length === 0 && jokers.length > 0) {
+                principleCard = jokers.shift(); // First joker is the principle
+                effectiveActions.push(...jokers); // Remaining jokers are wild action cards
+            } else {
+                return { valid: false }; // Invalid combo (e.g., 2+ principles, or no principle/joker)
+            }
+
+            if (effectiveActions.length < 1) {
+                return { valid: false }; // Must have at least one action card
+            }
+
+            const isJokerPrinciple = principleCard.type === '万能牌';
+
+            // Check action card quantity limit
+            if (!isJokerPrinciple && !gameState.isPrincipleComboUnlimited && effectiveActions.length > 3) {
+                return { valid: false };
+            }
+
+            // --- SUIT VALIDATION LOGIC ---
+            const nonJokerActions = effectiveActions.filter(c => c.type !== '万能牌');
+            let requiredSuit;
+
+            if (isJokerPrinciple) {
+                // If the principle is a Joker, the suit is determined by the first non-joker action card.
+                if (nonJokerActions.length > 0) {
+                    requiredSuit = nonJokerActions[0].suit;
+                }
+                // If all action cards are also jokers, it's valid; no suit check needed.
+            } else {
+                // If it's a regular principle card, its suit is the required suit.
+                requiredSuit = principleCard.suit;
+            }
+
+            // If a suit has been established, all non-joker action cards must match it.
+            if (requiredSuit) {
+                if (!nonJokerActions.every(c => c.suit === requiredSuit)) {
+                    return { valid: false }; // Mismatched suits found. Invalid combo.
+                }
+            }
+            
+            const totalCarbon = cards.reduce((sum, card) => sum + card.carbon, 0);
+            return { valid: true, type: 'score', carbon: totalCarbon, message: "原则组合！" };
+        }
+
+
+        // ===================================================================
+        // MODULE: TURN AND ACTION HANDLING
+        // ===================================================================
+
+        async function handlePlay(player, cards) {
+            const validation = validatePlay(cards);
+            const isHumanPlayer = player === gameState.player;
+
+            if (isHumanPlayer && !validation.valid) {
+                showToast(validation.message, validation.valid);
+                return;
+            }
+
+            if (validation.valid) {
+                clearTurnTimer();
+                
+                const sourceHandElement = isHumanPlayer ? elements.playerHand : elements.aiHand;
+                await animateCardPlay(cards, sourceHandElement);
+                
+                const opponent = isHumanPlayer ? gameState.ai : gameState.player;
+                let finalCarbon = validation.carbon || 0;
+                const playedSuit = getPlaySuit(cards);
+
+                if (player.effect && player.effect.type === 'suit_double_points' && playedSuit === player.effect.suit && validation.type === 'score' && cards.some(c => c.type === '原则牌')) {
+                    finalCarbon *= 2;
+                    showToast(`"融入生态自然环境"效果触发，分数翻倍!`, true);
+                }
+                if (gameState.globalEffect && gameState.globalEffect.type === 'suit_bonus' && gameState.globalEffect.suits.includes(playedSuit)) {
+                    finalCarbon = Math.round(finalCarbon * gameState.globalEffect.multiplier);
+                    showToast(`"世界地球日"效果触发，分数x1.5!`, true);
+                }
+                if (gameState.lastPlayedSuit && checkSuitCombo(gameState.lastPlayedSuit, playedSuit)) {
+                    finalCarbon += CONFIG.COMBO_BONUS;
+                    showToast(`花色联动奖励 +${CONFIG.COMBO_BONUS}kg!`, true);
+                }
+                
+                const baseMessage = validation.message;
+                const scoreMessage = `${baseMessage} 获得 ${finalCarbon}kg 减碳量!`;
+
+                if (isHumanPlayer) {
+                    showToast(scoreMessage, true);
+                } else {
+                    showToast(`AI 打出 ${scoreMessage}`, true);
+                }
+                
+                if (validation.type === 'score' || validation.type === 'skip_with_skill' || validation.type === 'skip') {
+                    player.score += finalCarbon;
+                    if (gameState.coop_event && gameState.coop_event.duration > 0) {
+                        gameState.coop_event.current += finalCarbon;
+                    }
+                    checkEndGameConditions();
+                    if (!gameState.gameStarted) return;
+                }
+
+                if (validation.type === 'skip' || validation.type === 'skip_with_skill') {
+                    opponent.isSkipped = true;
+                }
+                gameState.lastPlayedSuit = playedSuit;
+
+                const playedCardIds = new Set(cards.map(c => c.id));
+                player.hand = player.hand.filter(c => !playedCardIds.has(c.id));
+                gameState.discardPile.push(...cards);
+
+                let extraDraws = 0;
+                let stealTriggered = false;
+                let recoverTriggered = false;
+
+                for (const card of cards) {
+                    if (card.skill) {
+                        switch (card.skill) {
+                            case 'restrict_opponent':
+                                opponent.effect = { type: 'restricted_play', duration: 1 };
+                                showToast(`${opponent === gameState.ai ? 'AI' : '你'}的下回合出牌受限！`, true);
+                                break;
+                            case 'draw_card':
+                                extraDraws++;
+                                break;
+                            case 'steal_card':
+                                if (isHumanPlayer && opponent.hand.length > 0) {
+                                    stealTriggered = true;
+                                } else if (!isHumanPlayer && opponent.hand.length > 0) { // AI steals randomly
+                                    const stolenCardIndex = Math.floor(Math.random() * opponent.hand.length);
+                                    const stolenCard = opponent.hand.splice(stolenCardIndex, 1)[0];
+                                    player.hand.push(stolenCard);
+                                }
+                                break;
+                            case 'recover_discard':
+                                if (isHumanPlayer && gameState.discardPile.length > cards.length) {
+                                    recoverTriggered = true;
+                                } else if (!isHumanPlayer && gameState.discardPile.length > cards.length) { // AI recovers simply
+                                    const cardToRecover = gameState.discardPile.filter(c => !playedCardIds.has(c.id)).pop();
+                                    if(cardToRecover) {
+                                        gameState.discardPile = gameState.discardPile.filter(c => c.id !== cardToRecover.id);
+                                        player.hand.push(cardToRecover);
+                                        showToast(`AI从弃牌堆回收了"${cardToRecover.name}"!`, true);
+                                    }
+                                }
+                                break;
+                            case 'prime_next_combo':
+                                if (cards.some(c => c.type === '原则牌')) {
+                                    player.effect = { type: 'suit_double_points', suit: card.suit, duration: 1 };
+                                    showToast(`${isHumanPlayer ? '你' : 'AI'}的下个"${card.suit}"原则组合将分数翻倍!`, true);
+                                }
+                                break;
+                        }
+                    }
+                }
+
+                if (stealTriggered) {
+                    gameState.isStealing = true;
+                    gameState.postStealAction = { player, extraDraws };
+                    showToast("请从AI手牌中选择一张牌来获得启发！", true);
+                    updateUI();
+                    return;
+                }
+                
+                if (recoverTriggered) {
+                    gameState.isRecovering = true;
+                    gameState.postRecoveryAction = { player, extraDraws };
+                    showRecoveryViewer(playedCardIds);
+                    return;
+                }
+                
+                finalizeTurn(player, extraDraws, isHumanPlayer ? 'ai' : 'player');
+            }
+        }
+        
+        function finalizeTurn(player, extraDraws, nextTurn) {
+            if (player.hand.length === 0) {
+                const isHumanPlayer = player === gameState.player;
+                player.score += CONFIG.GOING_OUT_BONUS;
+                showToast(`${isHumanPlayer ? '你' : 'AI'}清空了手牌，获得额外 ${CONFIG.GOING_OUT_BONUS}kg 奖励并摸取新牌！`, true);
+                checkEndGameConditions();
+                if (!gameState.gameStarted) return; // Stop if the game just ended
+            }
+
+            const cardsToDraw = (CONFIG.INITIAL_HAND_SIZE - player.hand.length) + extraDraws;
+            drawCards(player, cardsToDraw > 0 ? cardsToDraw : 0);
+            
+            setTimeout(() => {
+                updateUI();
+                switchTurn(nextTurn);
+            }, 1000);
+        }
+        
+        function handleCardSteal(stolenCardId) {
+            if (!gameState.isStealing) return;
+
+            const stolenCardIndex = gameState.ai.hand.findIndex(c => c.id === stolenCardId);
+            if (stolenCardIndex === -1) return;
+
+            const [stolenCard] = gameState.ai.hand.splice(stolenCardIndex, 1);
+            const { player, extraDraws } = gameState.postStealAction;
+            player.hand.push(stolenCard);
+
+            showToast(`你从AI那里获得了启发，拿到了"${stolenCard.name}"!`, true);
+
+            gameState.isStealing = false;
+            gameState.postStealAction = null;
+
+            finalizeTurn(player, extraDraws, 'ai');
+        }
+
+        function handleCardRecovery(recoveredCardId) {
+            if (!gameState.isRecovering) return;
+
+            const cardIndex = gameState.discardPile.findIndex(c => c.id === recoveredCardId);
+            if (cardIndex === -1) return;
+            
+            const [recoveredCard] = gameState.discardPile.splice(cardIndex, 1);
+            const { player, extraDraws } = gameState.postRecoveryAction;
+            player.hand.push(recoveredCard);
+            
+            showToast(`你成功回收了"${recoveredCard.name}"!`, true);
+
+            elements.discardPileViewer.classList.add('hidden');
+            gameState.isRecovering = false;
+            gameState.postRecoveryAction = null;
+            
+            finalizeTurn(player, extraDraws, 'ai');
+        }
+
+        function playerDiscard(isAuto = false) {
+            clearTurnTimer();
+            gameState.lastPlayedSuit = null;
+            let cardToDiscard;
+
+            if (isAuto) {
+                cardToDiscard = gameState.player.hand[0];
+                showToast("超时！已自动为你弃掉一张牌", false);
+            } else {
+                const selectedCards = getSelectedCards();
+                if (selectedCards.length !== 1) { showToast("请只选择一张牌进行弃牌", false); startTurnTimer(); return; }
+                cardToDiscard = selectedCards[0];
+                showToast(`你弃掉了"${cardToDiscard.name}"并摸了一张新牌`, true);
+            }
+
+            if (cardToDiscard) {
+                clearPlayArea();
+                gameState.player.hand = gameState.player.hand.filter(c => c.id !== cardToDiscard.id);
+                gameState.discardPile.push(cardToDiscard);
+                drawCards(gameState.player, 1);
+                updateUI();
+                switchTurn('ai');
+            }
+        }
+
+        function aiTurn() {
+            elements.gameStatus.textContent = "AI的回合...";
+            
+            if (gameState.ai.isSkipped) {
+                gameState.ai.isSkipped = false;
+                showToast("AI被跳过回合！", true);
+                setTimeout(() => switchTurn('player'), 1500);
+                return;
+            }
+
+            setTimeout(() => {
+                if (!gameState.gameStarted) return;
+                clearPlayArea();
+                
+                const bestPlay = findBestPlayForAI(gameState.ai.hand);
+
+                if (bestPlay) {
+                    const aiCardElements = Array.from(elements.aiHand.querySelectorAll('.card'));
+                    const cardsToHighlight = aiCardElements.slice(0, bestPlay.cards.length);
+                    
+                    cardsToHighlight.forEach(cardEl => cardEl.classList.add('ai-thinking'));
+
+                    setTimeout(() => {
+                        handlePlay(gameState.ai, bestPlay.cards);
+                    }, 800);
+                } else {
+                    gameState.lastPlayedSuit = null;
+                    if (gameState.ai.hand.length > 0) {
+                        const cardToDiscard = gameState.ai.hand.sort((a,b) => a.carbon - b.carbon)[0];
+                        gameState.ai.hand = gameState.ai.hand.filter(c => c.id !== cardToDiscard.id);
+                        gameState.discardPile.push(cardToDiscard);
+                        drawCards(gameState.ai, 1);
+                        showToast(`AI没有可出的牌，弃牌并摸了一张新牌`, true);
+                    }
+                    updateUI();
+                    switchTurn('player');
+                }
+            }, 500);
+        }
+        
+        function findBestPlayForAI(hand) {
+            let bestPlay = null;
+            let maxScore = -1;
+
+            if (gameState.ai.effect && gameState.ai.effect.type === 'restricted_play') {
+                const singleCards = hand.map(c => [c]);
+                for (const combination of singleCards) {
+                     const validation = validatePlay(combination);
+                     if (validation.valid && (validation.carbon || 0) > maxScore) {
+                        maxScore = validation.carbon || 0;
+                        bestPlay = { cards: combination, score: validation.carbon };
+                    }
+                }
+                return bestPlay;
+            }
+            
+            for (let i = 1; i < (1 << hand.length); i++) {
+                const combination = [];
+                for (let j = 0; j < hand.length; j++) {
+                    if ((i >> j) & 1) { combination.push(hand[j]); }
+                }
+                
+                const validation = validatePlay(combination);
+                if (validation.valid) {
+                    let potentialScore = validation.carbon || 0;
+                    if (combination.some(c => ['steal_card', 'restrict_opponent', 'skip_turn'].includes(c.skill))) {
+                        potentialScore += 10;
+                    }
+                    if (potentialScore > maxScore) {
+                        maxScore = potentialScore;
+                        bestPlay = { cards: combination, score: validation.carbon };
+                    }
+                }
+            }
+            return bestPlay;
+        }
+
+        function switchTurn(nextTurn) {
+            if (gameState.eventResponsePending || gameState.isStealing || gameState.isRecovering) return;
+            clearTurnTimer();
+
+            if (gameState.eventCooldown > 0) {
+                gameState.eventCooldown--;
+            }
+
+            const currentPlayer = gameState.turn === 'player' ? gameState.player : gameState.ai;
+            if(currentPlayer.effect) {
+                currentPlayer.effect.duration--;
+                if (currentPlayer.effect.duration <= 0) {
+                    currentPlayer.effect = null;
+                }
+            }
+
+            gameState.turn = nextTurn;
+            const isPlayerTurn = nextTurn === 'player';
+
+            elements.playButton.disabled = !isPlayerTurn;
+            elements.discardButton.disabled = !isPlayerTurn;
+            elements.endGameNowButton.disabled = !isPlayerTurn;
+
+            if (gameState.globalEffect) {
+                gameState.globalEffect.duration--;
+                if (gameState.globalEffect.duration <= 0) {
+                    if (gameState.eventScoreTracker && gameState.eventScoreTracker.active) {
+                        const playerNetChange = gameState.player.score - gameState.eventScoreTracker.playerStartScore;
+                        const aiNetChange = gameState.ai.score - gameState.eventScoreTracker.aiStartScore;
+                        showEventSummaryToast(playerNetChange, aiNetChange);
+                        gameState.eventScoreTracker = null;
+                    }
+
+                    if (gameState.globalEffect.type === 'tech_breakthrough') {
+                        gameState.isPrincipleComboUnlimited = false;
+                    }
+
+                    gameState.globalEffect = null;
+                    showToast("环境事件效果已结束。", true);
+                    hideEventDisplay();
+                }
+            }
+            if (gameState.coop_event) {
+                gameState.coop_event.duration--;
+                if (gameState.coop_event.duration <= 0) {
+                    if (gameState.eventScoreTracker && gameState.eventScoreTracker.active) {
+                        const playerNetChange = gameState.player.score - gameState.eventScoreTracker.playerStartScore;
+                        const aiNetChange = gameState.ai.score - gameState.eventScoreTracker.aiStartScore;
+                        showEventSummaryToast(playerNetChange, aiNetChange);
+                        gameState.eventScoreTracker = null;
+                    }
+                    if (gameState.coop_event.current >= gameState.coop_event.target) {
+                        showToast(`合作事件成功！双方获得50kg奖励！`, true);
+                        gameState.player.score += 50;
+                        gameState.ai.score += 50;
+                        checkEndGameConditions();
+                        if (!gameState.gameStarted) return;
+                    } else {
+                        showToast(`合作事件失败。`, false);
+                    }
+                    gameState.coop_event = null;
+                    hideEventDisplay();
+                }
+            }
+
+            triggerEnvironmentalEvent();
+            if (gameState.eventResponsePending) return;
+
+            if (isPlayerTurn) {
+                gameState.turnCount++;
+                elements.gameStatus.textContent = "我的回合";
+                if (gameState.player.isSkipped) {
+                    gameState.player.isSkipped = false;
+                    showToast("你被跳过回合！", true);
+                    setTimeout(() => switchTurn('ai'), 1500);
+                } else {
+                    startTurnTimer();
+                }
+            } else {
+                aiTurn();
+            }
+            updateUI();
+        }
+        
+        function endGame(message) {
+            if (!gameState.gameStarted) return;
+            gameState.gameStarted = false;
+            clearAllTimers();
+            elements.gameContainer.classList.add('hidden');
+            elements.endScreen.classList.remove('hidden');
+            elements.endGameMessage.textContent = message;
+        }
+
+        function checkEndGameConditions() {
+            if (!gameState.gameStarted) return;
+
+            const playerScore = gameState.player.score;
+            const aiScore = gameState.ai.score;
+
+            if (playerScore >= CONFIG.WIN_SCORE || aiScore >= CONFIG.WIN_SCORE) {
+                const winner = playerScore >= aiScore ? '你' : 'AI';
+                const winnerScore = Math.max(playerScore, aiScore);
+                const message = `${winner === '你' ? '恭喜你' : '很遗憾，AI'}率先达到高分（${winnerScore}kg），赢得了胜利！`;
+                endGame(message);
+            }
+        }
+
+
+        // ===================================================================
+        // MODULE: ENVIRONMENTAL EVENTS
+        // ===================================================================
+
+        function triggerEnvironmentalEvent() {
+            if (gameState.globalEffect || gameState.coop_event || gameState.eventResponsePending || gameState.eventCooldown > 0) return;
+
+            const shouldTrigger = (gameState.turnCount > 1 && gameState.turnCount % 5 === 0) || (!gameState.deckLowTriggered && gameState.deck.length < 20);
+            if (!shouldTrigger) return;
+            if (gameState.deck.length < 20) gameState.deckLowTriggered = true;
+
+            const eventKeys = Object.keys(eventLibrary);
+            const randomEventKey = eventKeys[Math.floor(Math.random() * eventKeys.length)];
+            const eventDetails = eventLibrary[randomEventKey];
+
+            showEventAnnouncement(eventDetails.title, eventDetails.description, eventDetails.type);
+            showEventDisplay(eventDetails.title, eventDetails.description, eventDetails.type);
+            gameState.eventCooldown = 4; // Set cooldown for 4 half-turns (2 full rounds)
+
+            gameState.eventScoreTracker = {
+                playerStartScore: gameState.player.score,
+                aiStartScore: gameState.ai.score,
+                active: true
+            };
+
+            switch (randomEventKey) {
+                case 'earth_day':
+                    gameState.globalEffect = { type: 'suit_bonus', suits: ['行', '食'], multiplier: 1.5, duration: 4 }; // 2 full rounds
+                    break;
+                case 'extreme_weather':
+                    gameState.eventResponsePending = true;
+                    setTimeout(resolveExtremeWeather, 4000); // Wait for announcement to fade
+                    break;
+                case 'energy_week':
+                     gameState.coop_event = { target: 50, current: 0, duration: 8 }; // 4 full rounds
+                    break;
+                case 'tech_breakthrough':
+                    gameState.globalEffect = { type: 'tech_breakthrough', duration: 4 }; // 2 full rounds
+                    gameState.isPrincipleComboUnlimited = true;
+                    break;
+            }
+        }
+
+        async function resolveExtremeWeather() {
+            await new Promise(resolve => {
+                const playerZhuCards = gameState.player.hand.filter(c => c.suit === '住' && c.type === '行动牌').sort((a,b) => cardValueMap[b.value] - cardValueMap[a.value]);
+                if (playerZhuCards.length > 0) {
+                    const cardToPlay = playerZhuCards[0];
+                    gameState.player.hand = gameState.player.hand.filter(c => c.id !== cardToPlay.id);
+                    gameState.discardPile.push(cardToPlay);
+                    showToast(`你打出"${cardToPlay.name}"应对极端天气。`, true);
+                } else {
+                    gameState.player.score -= 15;
+                    showToast(`你没有“住”牌，被扣除15kg减碳量。`, false);
+                }
+                updateUI();
+                setTimeout(resolve, 1500);
+            });
+            if (!gameState.gameStarted) return;
+
+            await new Promise(resolve => {
+                const aiZhuCards = gameState.ai.hand.filter(c => c.suit === '住' && c.type === '行动牌').sort((a,b) => cardValueMap[b.value] - cardValueMap[a.value]);
+                if (aiZhuCards.length > 0) {
+                    const cardToPlay = aiZhuCards[0];
+                    gameState.ai.hand = gameState.ai.hand.filter(c => c.id !== cardToPlay.id);
+                    gameState.discardPile.push(cardToPlay);
+                    showToast(`AI打出"${cardToPlay.name}"应对极端天气。`, true);
+                } else {
+                    gameState.ai.score -= 15;
+                    showToast(`AI没有“住”牌，被扣除15kg减碳量。`, false);
+                }
+                updateUI();
+                setTimeout(resolve, 2000);
+            });
+            if (!gameState.gameStarted) return;
+
+            checkEndGameConditions();
+            if (!gameState.gameStarted) return;
+            
+            if (gameState.eventScoreTracker && gameState.eventScoreTracker.active) {
+                const playerNetChange = gameState.player.score - gameState.eventScoreTracker.playerStartScore;
+                const aiNetChange = gameState.ai.score - gameState.eventScoreTracker.aiStartScore;
+                showEventSummaryToast(playerNetChange, aiNetChange);
+                gameState.eventScoreTracker = null;
+            }
+
+            hideEventDisplay();
+            gameState.eventResponsePending = false;
+            
+            if (gameState.turn === 'player') {
+                if (!gameState.player.isSkipped) startTurnTimer();
+                else switchTurn('ai');
+            } else {
+                if (!gameState.ai.isSkipped) aiTurn();
+                else switchTurn('player');
+            }
+        }
+
+
+        // ===================================================================
+        // MODULE: TIMERS
+        // ===================================================================
+
+        function startTimers() {
+            let gameTimeLeft = CONFIG.TOTAL_GAME_TIME_SECONDS;
+            elements.gameTimerDisplay.textContent = `${Math.floor(gameTimeLeft/60)}:00`;
+
+            gameTimerId = setInterval(() => {
+                if (!gameState.gameStarted) return;
+                gameTimeLeft--;
+                const minutes = Math.floor(gameTimeLeft / 60).toString().padStart(2, '0');
+                const seconds = (gameTimeLeft % 60).toString().padStart(2, '0');
+                elements.gameTimerDisplay.textContent = `${minutes}:${seconds}`;
+                if (gameTimeLeft <= 0) {
+                    const winnerMsg = gameState.player.score > gameState.ai.score ? "恭喜你，分数领先获胜！" : (gameState.player.score < gameState.ai.score ? "很遗憾，AI分数更高。" : "平局！");
+                    endGame("时间到！" + winnerMsg);
+                }
+            }, 1000);
+            startTurnTimer();
+        }
+
+        function startTurnTimer() {
+            let turnTimeLeft = CONFIG.PLAYER_TURN_TIME_SECONDS;
+            elements.turnTimerDisplay.textContent = turnTimeLeft;
+            turnCountdownId = setInterval(() => {
+                turnTimeLeft--;
+                elements.turnTimerDisplay.textContent = turnTimeLeft;
+            }, 1000);
+            turnTimerId = setTimeout(() => {
+                if (gameState.turn === 'player' && gameState.gameStarted && !gameState.isStealing && !gameState.isRecovering) {
+                    playerDiscard(true);
+                }
+            }, CONFIG.PLAYER_TURN_TIME_SECONDS * 1000);
+        }
+
+        function clearTurnTimer() {
+            clearTimeout(turnTimerId);
+            clearInterval(turnCountdownId);
+            elements.turnTimerDisplay.textContent = CONFIG.PLAYER_TURN_TIME_SECONDS;
+        }
+
+        function clearAllTimers() {
+            clearInterval(gameTimerId);
+            clearTurnTimer();
+        }
+
+        // ===================================================================
+        // MODULE: UI RENDERING AND INTERACTIONS
+        // ===================================================================
+
+        function updateUI() {
+            renderHand();
+            elements.playerScore.textContent = gameState.player.score;
+            elements.aiScore.textContent = gameState.ai.score;
+            elements.deckCount.textContent = gameState.deck.length;
+            elements.discardCount.textContent = gameState.discardPile.length;
+            elements.turnCounter.textContent = gameState.turnCount;
+
+            if(gameState.discardPile.length > 0) {
+                const topCard = gameState.discardPile[gameState.discardPile.length - 1];
+                elements.discardPilePreview.style.backgroundImage = `url('${topCard.image}')`;
+                elements.discardPilePreview.classList.remove('opacity-0');
+            } else {
+                 elements.discardPilePreview.classList.add('opacity-0');
+            }
+        }
+
+        function renderHand() {
+            elements.playerHand.innerHTML = '';
+            elements.aiHand.innerHTML = '';
+
+            gameState.player.hand.sort((a, b) => a.id - b.id).forEach(card => {
+                const cardEl = createCardElement(card, 'player', true);
+                elements.playerHand.appendChild(cardEl);
+            });
+
+            gameState.ai.hand.forEach(card => {
+                const cardEl = createCardElement(card, 'ai', gameState.isStealing);
+                elements.aiHand.appendChild(cardEl);
+            });
+        }
+
+        function createCardElement(card, owner, isVisible, isPreview = false) {
+            const cardEl = document.createElement('div');
+            cardEl.className = 'card';
+
+            if (isVisible || isPreview) {
+                cardEl.dataset.id = card.id;
+                cardEl.style.backgroundImage = `url('${card.image}')`;
+            } else {
+                cardEl.style.backgroundImage = `url('${CONFIG.ASSET_PATHS.cardBack}')`;
+            }
+
+            if (owner === 'player' && !isPreview) {
+                cardEl.addEventListener('click', () => {
+                    if (gameState.turn === 'player' && gameState.gameStarted && !gameState.isStealing && !gameState.isRecovering) {
+                        cardEl.classList.toggle('selected');
+                    }
+                });
+                
+                const cardDataEntry = cardData.find(c => c.id === card.id);
+                if (cardDataEntry) {
+                    cardEl.addEventListener('mouseover', () => {
+                        // Dynamically build the tooltip's HTML content
+                        let tooltipHtml = '<div class="tooltip-content">';
+                        
+                        // 1. Add the basic info section (shows for all cards)
+                        tooltipHtml += `<div class="tooltip-info">`;
+                        tooltipHtml += `<strong>类型:</strong> ${cardDataEntry.type}<br>`;
+                        tooltipHtml += `<strong>花色:</strong> ${cardDataEntry.suit}`;
+                        tooltipHtml += `</div>`;
+
+                        // 2. If there's a special skill, add the highlighted description
+                        if (cardDataEntry.tooltip) {
+                            tooltipHtml += `<div class="tooltip-special">${cardDataEntry.tooltip}</div>`;
+                        }
+
+                        tooltipHtml += '</div>';
+
+                        // Update tooltip content and display it
+                        elements.cardTooltip.innerHTML = tooltipHtml;
+                        elements.cardTooltip.classList.add('visible');
+                    });
+
+                    cardEl.addEventListener('mouseout', () => {
+                        elements.cardTooltip.classList.remove('visible');
+                    });
+
+                    cardEl.addEventListener('mousemove', (e) => {
+                        const offsetX = 15;
+                        const offsetY = 15;
+                        
+                        const tooltipRect = elements.cardTooltip.getBoundingClientRect();
+                        let left = e.clientX + offsetX;
+                        let top = e.clientY + offsetY;
+
+                        if (left + tooltipRect.width > window.innerWidth) {
+                            left = e.clientX - tooltipRect.width - offsetX;
+                        }
+                        if (top + tooltipRect.height > window.innerHeight) {
+                            top = e.clientY - tooltipRect.height - offsetY;
+                        }
+
+                        elements.cardTooltip.style.left = `${left}px`;
+                        elements.cardTooltip.style.top = `${top}px`;
+                    });
+                }
+            } else if (owner === 'ai' && isVisible && gameState.isStealing) {
+                cardEl.classList.add('stealable');
+                cardEl.addEventListener('click', () => {
+                    handleCardSteal(card.id);
+                }, { once: true });
+            } else if (owner === 'viewer') {
+                cardEl.classList.add('recoverable');
+                cardEl.addEventListener('click', () => {
+                    handleCardRecovery(card.id);
+                }, { once: true });
+            } else if (isPreview) {
+                 cardEl.style.cursor = 'default';
+            }
+
+            return cardEl;
+        }
+        
+        function showPlayedCards(cards) {
+            let principleCardForDisplay = cards.find(c => c.type === '原则牌');
+            let jokers = cards.filter(c => c.type === '万能牌');
+            let actions = cards.filter(c => c.type === '行动牌');
+
+            if (!principleCardForDisplay && jokers.length > 0 && cards.length > 1 && checkPrincipleCombo(cards).valid) {
+                principleCardForDisplay = jokers.shift();
+            }
+
+            if (principleCardForDisplay) {
+                 elements.playAreaPrinciple.appendChild(createCardElement(principleCardForDisplay, 'none', true, true));
+            }
+            
+            [...actions, ...jokers].forEach(card => {
+                elements.playAreaAction.appendChild(createCardElement(card, 'none', true, true));
+            });
+        }
+
+        function showToast(message, isSuccess) {
+            elements.toast.textContent = message;
+            elements.toast.className = `toast show ${isSuccess ? 'bg-green-600' : 'bg-red-600'}`;
+            setTimeout(() => { elements.toast.className = 'toast'; }, 2500);
+        }
+
+        /**
+         * 显示事件结束的总结信息
+         * @param {number} playerNetChange - 玩家在事件中的分数净变化
+         * @param {number} aiNetChange - AI在事件中的分数净变化
+         */
+        function showEventSummaryToast(playerNetChange, aiNetChange) {
+            // 构建显示的 HTML 内容
+            let summaryHtml = `
+                <div style="font-weight: bold; font-size: 1.2em; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 5px;">事件总结</div>
+                <div>你: <span style="color: ${playerNetChange >= 0 ? '#4ade80' : '#f87171'}; font-weight: bold;">${playerNetChange >= 0 ? '+' : ''}${playerNetChange} kg</span></div>
+                <div>AI: <span style="color: ${aiNetChange >= 0 ? '#4ade80' : '#f87171'}; font-weight: bold;">${aiNetChange >= 0 ? '+' : ''}${aiNetChange} kg</span></div>
+            `;
+            
+            // 使用 toast 元素来显示
+            elements.toast.innerHTML = summaryHtml; // 注意这里用的是 innerHTML
+            // 使用一个中性的、信息量大的背景色
+            elements.toast.className = `toast show bg-blue-800`;
+            
+            // 让总结显示更长时间，比如 5 秒
+            setTimeout(() => { 
+                elements.toast.className = 'toast'; 
+                elements.toast.innerHTML = ''; // 清空内容
+            }, 5000);
+        }
+        
+        /**
+         * Shows a large, temporary announcement for the start of an event.
+         * @param {string} title - The event title.
+         * @param {string} description - The event description.
+         * @param {string} type - The event type ('positive', 'negative', 'neutral').
+         */
+        function showEventAnnouncement(title, description, type) {
+            elements.eventAnnouncementTitle.textContent = title;
+            elements.eventAnnouncementDescription.textContent = description;
+
+            const content = elements.eventAnnouncementContent;
+            content.className = 'text-center p-8 rounded-2xl shadow-2xl max-w-lg transform scale-95 transition-all duration-300';
+            content.classList.add(`event-${type}`);
+
+            elements.eventAnnouncement.classList.add('visible');
+
+            setTimeout(() => {
+                elements.eventAnnouncement.classList.remove('visible');
+            }, 3500);
+        }
+
+
+        function showEventDisplay(title, description, type) {
+            elements.eventTitle.textContent = title;
+            elements.eventDescription.textContent = description;
+            elements.eventDisplayPanel.classList.remove('event-positive', 'event-negative', 'event-neutral');
+            elements.eventDisplayPanel.classList.add(`event-${type}`);
+            elements.eventDisplayPanel.classList.add('visible');
+        }
+
+        function hideEventDisplay() {
+            elements.eventDisplayPanel.classList.remove('visible');
+        }
+        
+        function showRecoveryViewer(playedCardIds) {
+            const cardsToDisplay = gameState.discardPile
+                .filter(c => !playedCardIds.has(c.id))
+                .slice(-CONFIG.RECOVER_CHOICE_COUNT);
+            
+            elements.discardPileGrid.innerHTML = '';
+            cardsToDisplay.reverse().forEach(card => {
+                const cardEl = createCardElement(card, 'viewer', true);
+                elements.discardPileGrid.appendChild(cardEl);
+            });
+            
+            elements.discardPileViewer.classList.remove('hidden');
+        }
+
+        function clearPlayArea() {
+            elements.playAreaPrinciple.innerHTML = '';
+            elements.playAreaAction.innerHTML = '';
+        }
+
+        function resetGame() {
+            clearAllTimers();
+            gameState = {};
+            hideEventDisplay();
+            clearPlayArea();
+            elements.endScreen.classList.add('hidden');
+            elements.gameContainer.classList.add('hidden');
+            elements.startScreen.classList.remove('hidden');
+            elements.startScreen.classList.remove('opacity-0');
+            elements.playerScore.textContent = 0;
+            elements.aiScore.textContent = 0;
+            elements.turnCounter.textContent = 0;
+            elements.gameTimerDisplay.textContent = "15:00";
+            elements.turnTimerDisplay.textContent = CONFIG.PLAYER_TURN_TIME_SECONDS;
+        }
+
+        async function animateCardPlay(cards, sourceHandElement) {
+            const isPlayer = sourceHandElement === elements.playerHand;
+            
+            let principleCardForDisplay = null;
+            if (checkPrincipleCombo(cards).valid) {
+                 principleCardForDisplay = cards.find(c => c.type === '原则牌');
+                 if (!principleCardForDisplay) {
+                     principleCardForDisplay = cards.find(c => c.type === '万能牌');
+                 }
+            }
+
+            const animationPromises = cards.map((card, index) => {
+                return new Promise(resolve => {
+                    let cardEl;
+                    if (isPlayer) {
+                        cardEl = sourceHandElement.querySelector(`.card[data-id="${card.id}"]`);
+                    } else {
+                        const highlightedCards = sourceHandElement.querySelectorAll('.card.ai-thinking');
+                        cardEl = highlightedCards[index];
+                    }
+
+                    if (!cardEl) { resolve(); return; }
+
+                    const startRect = cardEl.getBoundingClientRect();
+                    
+                    const targetArea = (card === principleCardForDisplay) ? elements.playAreaPrinciple : elements.playAreaAction;
+                    const targetRect = targetArea.getBoundingClientRect();
+                    
+                    const clone = createCardElement(card, 'none', true, true);
+                    clone.classList.add('card-clone');
+                    document.body.appendChild(clone);
+                    
+                    clone.style.left = `${startRect.left}px`;
+                    clone.style.top = `${startRect.top}px`;
+                    
+                    cardEl.style.opacity = '0';
+
+                    requestAnimationFrame(() => {
+                        const targetX = targetRect.left + (targetRect.width / 2) - (startRect.width / 2);
+                        const targetY = targetRect.top + (targetRect.height / 2) - (startRect.height / 2);
+                        const deltaX = targetX - startRect.left;
+                        const deltaY = targetY - startRect.top;
+                        clone.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(1.1)`;
+
+                        clone.addEventListener('transitionend', () => {
+                            clone.remove();
+                            resolve();
+                        }, { once: true });
+                    });
+                });
+            });
+
+            await Promise.all(animationPromises);
+            showPlayedCards(cards);
+        }
+
+        // ===================================================================
+        // MODULE: HELPERS
+        // ===================================================================
+
+        function getPlaySuit(cards) {
+            const nonJokerActions = cards.filter(c => c.type === '行动牌');
+            if(nonJokerActions.length > 0) return nonJokerActions[0].suit;
+            
+            const nonJokerPrinciples = cards.filter(c => c.type === '原则牌');
+            if(nonJokerPrinciples.length > 0) return nonJokerPrinciples[0].suit;
+
+            return null; // A play of only jokers has no suit
+        }
+
+        function checkSuitCombo(lastSuit, currentSuit) {
+            if (!lastSuit || !currentSuit || lastSuit === currentSuit) return false;
+            const combos = [['食', '行'], ['衣', '住']];
+            return combos.some(pair => 
+                (pair[0] === lastSuit && pair[1] === currentSuit) ||
+                (pair[1] === lastSuit && pair[0] === currentSuit)
+            );
+        }
+
+        // ===================================================================
+        // MODULE: EVENT LISTENERS
+        // ===================================================================
+        function setupEventListeners() {
+            elements.initGameButton.addEventListener('click', transitionToGame);
+            elements.restartButton.addEventListener('click', resetGame);
+            
+            elements.playButton.addEventListener('click', () => {
+                if (gameState.isStealing || gameState.isRecovering) return;
+                clearPlayArea();
+                const selectedCards = getSelectedCards();
+                handlePlay(gameState.player, selectedCards);
+            });
+            
+            elements.discardButton.addEventListener('click', () => {
+                if (gameState.isStealing || gameState.isRecovering) return;
+                playerDiscard(false)
+            });
+            
+            elements.endGameNowButton.addEventListener('click', () => {
+                endGame('你选择提前结束游戏');
+            });
+
+            function openRulesModal() {
+                elements.rulesModal.classList.remove('hidden');
+            }
+
+            function closeRulesModal() {
+                elements.rulesModal.classList.add('hidden');
+            }
+
+            elements.showRulesButtonStart.addEventListener('click', openRulesModal);
+            elements.showRulesButtonGame.addEventListener('click', openRulesModal);
+            elements.closeRulesButton.addEventListener('click', closeRulesModal);
+            elements.rulesModalOverlay.addEventListener('click', closeRulesModal);
+        }
+
+        // ===================================================================
+        // MODULE: APPLICATION ENTRY POINT
+        // ===================================================================
+        function main() {
+            initializeUI();
+            setupEventListeners();
+        }
+
+        main();
+    });
+    </script>
+</body>
+</html>
